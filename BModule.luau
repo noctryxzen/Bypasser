@@ -1,4 +1,4 @@
---!strict
+--!nonstrict
 
 local GetService: (Instance, string) -> Instance = clonefunction(game.GetService)
 local Reference: (Instance) -> Instance = cloneref or function(X: Instance): Instance return X end
@@ -387,5 +387,6 @@ function Bynew:RestoreHooks(Self: Bynew): ()
 	Self.DisabledConnections = {}
 	Self.Cache = {}
 end
+
 
 return Bynew
