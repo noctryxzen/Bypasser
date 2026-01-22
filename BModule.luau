@@ -162,7 +162,7 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 					end
 				end
 				
-				if not Found and Find.FunctionName and Information.name then
+				if not Found and Find.FunctionName and Information.name and SType(Information.name) == "string" then
 					local FuncName: string = SLower(Information.name)
 					local SearchFunc: string = SLower(Find.FunctionName)
 					if FuncName == SearchFunc then
