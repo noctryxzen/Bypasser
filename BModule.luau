@@ -63,6 +63,7 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 	
 	local ok: boolean, noo: any = SPcall(function(): ()
 		local Functions: any
+		local UseFilterGC: boolean = false
 		
 		if filtergc and (Find.FunctionName or Find.ScriptName) then
 			local ok2: boolean, Result: any = SPcall(function(): any
@@ -81,6 +82,7 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 			
 			if ok2 and Result then
 				Functions = SType(Result) ~= "table" and {Result} or Result
+				UseFilterGC = true
 			else
 				Functions = getgc and getgc(false) or {}
 			end
@@ -100,7 +102,8 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 				
 				local Found: boolean = false
 				
-				if filtergc and (Find.FunctionName or Find.ScriptName) then
+				-- filtergc kullanıldıysa ve başarılıysa direkt bulunmuş sayılır
+				if UseFilterGC then
 					Found = true
 				end
 				
