@@ -1,20 +1,14 @@
---!nonstrict
+--!strict
 
 local GetService: (Instance, string) -> Instance = clonefunction(game.GetService)
 local Reference: (Instance) -> Instance = cloneref or function(X: Instance): Instance return X end
-
 local SType: (any) -> string = clonefunction(type)
 local SPcall: ((...any) -> ...any, ...any) -> (boolean, ...any) = clonefunction(pcall)
-local SXpcall: ((...any) -> ...any, (string) -> (), ...any) -> (boolean, ...any) = clonefunction(xpcall)
 local SPairs: <K, V>({[K]: V}) -> ((any, any) -> (any, any), any, any) = clonefunction(pairs)
-local SNext: <K, V>({[K]: V}, K?) -> (K?, V?) = clonefunction(next)
-local SSelect: (string | number, ...any) -> ...any = clonefunction(select)
 local SRawget: <K, V>({[K]: V}, K) -> V = clonefunction(rawget)
 local SRawset: <K, V>({[K]: V}, K, V) -> () = clonefunction(rawset)
-local SGetFenv: (number | ((...any) -> any)) -> {[any]: any} = clonefunction(getfenv)
-local SSetFenv: (((...any) -> any), {[any]: any}) -> () = clonefunction(setfenv)
-local SToStr: (any) -> string = clonefunction(tostring)
 local SWarn: (string) -> () = clonefunction(warn)
+local SToString: (any) -> string = clonefunction(tostring)
 
 local Services: {[string]: Instance} = setmetatable({}, {
 	__index = function(S: any, N: string): Instance
@@ -23,44 +17,29 @@ local Services: {[string]: Instance} = setmetatable({}, {
 	end
 })
 
+local ExecutorName: string, ExecutorVersion: string = identifyexecutor()
+
 type BynewData = {
 	Hooks: {[any]: {Original: any, Active: boolean}};
-	DisabledConnections: {any};
 	Cache: {[string]: any};
+}
+
+type HookOptions = {
+	ScriptName: string?,
+	Path: string?,
+	Constants: {any}?,
+	Upvalues: {string}?,
+	Hash: string?,
+	FunctionName: string?
 }
 
 type BynewMethods = {
 	New: () -> Bynew;
-	Hook: (self: Bynew, Target: any, Replacement: any) -> any;
-	Unhook: (self: Bynew, Target: any) -> boolean;
-	DisableConnections: (self: Bynew, Signal: RBXScriptSignal) -> number;
-	Explode: (self: Bynew, Target: string | {ScriptName: string?, Path: string?, Constants: {string}?, Upvalues: {string}?, Hash: string?, FunctionName: string?}) -> number;
-	FilterHook: (self: Bynew, Filter: {Type: string?, Name: string?, Source: string?}, Hook: any) -> number;
-	CleanThreads: (self: Bynew) -> number;
-	Spoof: (self: Bynew, Func: any) -> any;
-	IndexHook: (self: Bynew, Callback: (Instance: any, Key: any) -> any?) -> ();
-	NamecallHook: (self: Bynew, Callback: (Instance: any, Method: string, Args: {any}) -> any?) -> ();
+	Hook: (self: Bynew, Target: string | HookOptions) -> number;
 	RestoreHooks: (self: Bynew) -> ();
 }
 
 type Bynew = BynewData & BynewMethods
-
-local ExecutorName: string, ExecutorVersion: string = identifyexecutor()
-
-local function CheckSupport(FunctionName: string, Func: any?): boolean
-	if not Func then
-		SWarn(`[{ExecutorName}] doesn't support: {FunctionName}`)
-		return false
-	end
-	
-	local Success: boolean = SXpcall(function(): ()
-		Func()
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] error testing {FunctionName}: {Err}`)
-	end)
-	
-	return Success or Func ~= nil
-end
 
 local Bynew: Bynew = {} :: Bynew
 Bynew.__index = Bynew
@@ -68,325 +47,284 @@ Bynew.__index = Bynew
 function Bynew.New(): Bynew
 	local Self: BynewData = setmetatable({} :: BynewData, Bynew)
 	Self.Hooks = {}
-	Self.DisabledConnections = {}
 	Self.Cache = {}
 	return (Self :: any) :: Bynew
 end
 
-function Bynew:Hook(Self: Bynew, Target: any, Replacement: any): any
-	if not CheckSupport("hookfunction", hookfunction) then
-		return Target
-	end
-	
-	if Self.Hooks[Target] then
-		return Self.Hooks[Target].Original
-	end
-	
-	local Success: boolean, Result: any = SXpcall(function(): any
-		local Original: any = clonefunction(Target)
-		hookfunction(Target, newcclosure(Replacement))
-		
-		Self.Hooks[Target] = {
-			Original = Original,
-			Active = true
-		}
-		
-		return Original
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] hook failed: {Err}`)
-	end)
-	
-	return Success and Result or Target
-end
-
-function Bynew:Unhook(Self: Bynew, Target: any): boolean
-	if not CheckSupport("restorefunction", restorefunction) then
-		return false
-	end
-	
-	local Entry: any = Self.Hooks[Target]
-	if not Entry then
-		return false
-	end
-	
-	local Success: boolean = SXpcall(function(): ()
-		restorefunction(Target)
-		Entry.Active = false
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] unhook failed: {Err}`)
-	end)
-	
-	return Success
-end
-
-function Bynew:DisableConnections(Self: Bynew, Signal: RBXScriptSignal): number
-	if not CheckSupport("getconnections", getconnections) then
+function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
+	if not getgc and not filtergc then
+		SWarn(`[{ExecutorName}] doesn't support: getgc or filtergc`)
 		return 0
 	end
 	
-	local Count: number = 0
-	
-	SXpcall(function(): ()
-		local Connections: any = getconnections(Signal)
-		
-		for Idx: number, Conn: any in Connections do
-			if Conn.Enabled then
-				Conn:Disable()
-				SRawset(Self.DisabledConnections, #Self.DisabledConnections + 1, Conn)
-				Count += 1
-			end
-		end
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] disable connections failed: {Err}`)
-	end)
-	
-	return Count
-end
-
-function Bynew:Explode(Self: Bynew, Target: string | {ScriptName: string?, Path: string?, Constants: {string}?, Upvalues: {string}?, Hash: string?, FunctionName: string?}): number
-	if not CheckSupport("getgc", getgc) then
-		return 0
-	end
-	
+	local Find: HookOptions = SType(Target) == "string" and {ScriptName = Target} or Target
 	local Destroyed: number = 0
 	
-	SXpcall(function(): ()
-		local Gc: any = getgc(false)
-		local Find: any = Target
+	local ok: boolean, noo: any = SPcall(function(): ()
+		local Functions: any
 		
-		if SType(Target) == "string" then
-			Find = {FunctionName = Target, Hash = Target}
+		if filtergc and (Find.FunctionName or Find.ScriptName) then
+			local ok2: boolean, Result: any = SPcall(function(): any
+				local FilterOptions: {[string]: any} = {}
+				
+				if Find.FunctionName then
+					FilterOptions.Name = Find.FunctionName
+				end
+				
+				if Find.ScriptName then
+					FilterOptions.Source = Find.ScriptName
+				end
+				
+				return filtergc("function", FilterOptions)
+			end)
+			
+			if ok2 and Result then
+				Functions = SType(Result) ~= "table" and {Result} or Result
+			else
+				Functions = getgc and getgc(false) or {}
+			end
+		else
+			Functions = getgc and getgc(false) or {}
 		end
 		
-		for I: number = 1, #Gc do
-			local Func: any = Gc[I]
+		for Index: number = 1, #Functions do
+			local Function: any = Functions[Index]
 			
-			if SType(Func) == "function" and islclosure(Func) then
-				local Info: any = debug.getinfo(Func)
+			if SType(Function) == "function" and islclosure and islclosure(Function) then
+				local ok3: boolean, Information: any = SPcall(debug.getinfo, Function)
+				
+				if not ok3 or not Information then
+					continue
+				end
+				
 				local Found: boolean = false
 				
-				if Find.FunctionName and Info.name == Find.FunctionName then
-					Found = true
-				elseif Find.ScriptName and Info.source and Info.source == Find.ScriptName then
-					Found = true
-				elseif Find.Path and Info.source and Info.source == Find.Path then
-					Found = true
-				elseif Find.Hash and getfunctionhash and getfunctionhash(Func) == Find.Hash then
+				if filtergc and (Find.FunctionName or Find.ScriptName) then
 					Found = true
 				end
 				
-				if Find.Constants and not Found then
-					local Consts: any = debug.getconstants(Func)
-					for Idx: number = 1, #Consts do
-						local C: any = Consts[Idx]
-						for T: number = 1, #Find.Constants do
-							if C == Find.Constants[T] then
-								Found = true
-								break
-							end
-						end
-						if Found then break end
+				if not Found and Find.ScriptName and Information.source then
+					local Source: string = SToString(Information.source)
+					if string.find(Source, Find.ScriptName, 1, true) then
+						Found = true
 					end
 				end
 				
-				if Find.Upvalues and not Found then
-					local Ups: any = debug.getupvalues(Func)
-					for Name: any, Val: any in SPairs(Ups) do
-						for T: number = 1, #Find.Upvalues do
-							if Name == Find.Upvalues[T] then
-								Found = true
-								break
+				if not Found and Find.Path and Information.source then
+					local FullPath: string = SToString(Information.source)
+					
+					if string.find(FullPath, Find.Path, 1, true) then
+						Found = true
+					end
+					
+					if not Found then
+						for ServiceName: string, Service: Instance in SPairs(Services) do
+							if string.find(Find.Path, ServiceName, 1, true) then
+								local ok4: boolean = SPcall(function(): ()
+									local Parts: {string} = string.split(Find.Path, ".")
+									local Current: Instance = Service
+									
+									for PartIndex: number = 2, #Parts do
+										local NextChild: Instance? = Current:FindFirstChild(Parts[PartIndex])
+										
+										if not NextChild then
+											NextChild = Current:FindFirstChildOfClass(Parts[PartIndex])
+										end
+										
+										if not NextChild then
+											break
+										end
+										
+										Current = NextChild
+									end
+									
+									if Current and Current ~= Service then
+										for Index2: number, Descendant: Instance in Current:GetDescendants() do
+											if Descendant:IsA("LocalScript") or Descendant:IsA("Script") or Descendant:IsA("ModuleScript") then
+												local DescendantName: string = Descendant.Name
+												local DescendantFullName: string = Descendant:GetFullName()
+												
+												if string.find(FullPath, DescendantName, 1, true) or string.find(FullPath, DescendantFullName, 1, true) then
+													Found = true
+													break
+												end
+											end
+										end
+									end
+								end)
+								
+								if Found then break end
 							end
 						end
-						if Found then break end
+					end
+				end
+				
+				if not Found and Find.FunctionName and Information.name then
+					if Information.name == Find.FunctionName then
+						Found = true
+					end
+				end
+				
+				if not Found and Find.Hash and getfunctionhash then
+					local ok5: boolean, FunctionHash: any = SPcall(getfunctionhash, Function)
+					
+					if ok5 and FunctionHash == Find.Hash then
+						Found = true
+					end
+				end
+				
+				if not Found and Find.Constants and debug.getconstants then
+					local ok6: boolean, Constants: any = SPcall(debug.getconstants, Function)
+					
+					if ok6 and Constants then
+						for ConstantIndex: number = 1, #Constants do
+							local Constant: any = Constants[ConstantIndex]
+							
+							for TargetIndex: number = 1, #Find.Constants do
+								local TargetConstant: any = Find.Constants[TargetIndex]
+								
+								if Constant == TargetConstant then
+									Found = true
+									break
+								end
+							end
+							
+							if Found then break end
+						end
+					end
+				end
+				
+				if not Found and Find.Upvalues and debug.getupvalues then
+					local ok7: boolean, FunctionUpvalues: any = SPcall(debug.getupvalues, Function)
+					
+					if ok7 and FunctionUpvalues then
+						for UpvalueName: any, UpvalueValue: any in SPairs(FunctionUpvalues) do
+							for TargetIndex: number = 1, #Find.Upvalues do
+								local TargetUpvalueName: string = Find.Upvalues[TargetIndex]
+								
+								if SType(UpvalueName) == "string" and UpvalueName == TargetUpvalueName then
+									Found = true
+									break
+								elseif SType(UpvalueName) == "number" then
+									local UpvalueNameAsString: string = SToString(UpvalueName)
+									if UpvalueNameAsString == TargetUpvalueName then
+										Found = true
+										break
+									end
+								end
+							end
+							
+							if Found then break end
+						end
 					end
 				end
 				
 				if Found then
-					local Consts: any = debug.getconstants(Func)
-					for Idx: number = 1, #Consts do
-						local C: any = Consts[Idx]
-						if SType(C) == "string" then
-							debug.setconstant(Func, Idx, "")
-						elseif SType(C) == "number" then
-							debug.setconstant(Func, Idx, 0)
+					if debug.getconstants and debug.setconstant then
+						local ok8: boolean, Constants: any = SPcall(debug.getconstants, Function)
+						
+						if ok8 and Constants then
+							for ConstantIndex: number = 1, #Constants do
+								local Constant: any = Constants[ConstantIndex]
+								local ConstantType: string = SType(Constant)
+								
+								if ConstantType == "string" then
+									SPcall(debug.setconstant, Function, ConstantIndex, "")
+								elseif ConstantType == "number" then
+									SPcall(debug.setconstant, Function, ConstantIndex, 0)
+								elseif ConstantType == "boolean" then
+									SPcall(debug.setconstant, Function, ConstantIndex, false)
+								end
+							end
 						end
 					end
 					
-					local Ups: any = debug.getupvalues(Func)
-					for Name: any, Val: any in SPairs(Ups) do
-						debug.setupvalue(Func, Name, nil)
+					if debug.getupvalues and debug.setupvalue then
+						local ok9: boolean, FunctionUpvalues: any = SPcall(debug.getupvalues, Function)
+						
+						if ok9 and FunctionUpvalues then
+							for UpvalueName: any, UpvalueValue: any in SPairs(FunctionUpvalues) do
+								SPcall(debug.setupvalue, Function, UpvalueName, nil)
+							end
+						end
 					end
+					
+					if debug.getprotos then
+						local ok10: boolean, Prototypes: any = SPcall(debug.getprotos, Function)
+						
+						if ok10 and Prototypes then
+							for ProtoIndex: number = 1, #Prototypes do
+								local ProtoFunction: any = Prototypes[ProtoIndex]
+								
+								if SType(ProtoFunction) == "function" then
+									if debug.getconstants and debug.setconstant then
+										local ok11: boolean, ProtoConstants: any = SPcall(debug.getconstants, ProtoFunction)
+										
+										if ok11 and ProtoConstants then
+											for ProtoConstIndex: number = 1, #ProtoConstants do
+												local ProtoConst: any = ProtoConstants[ProtoConstIndex]
+												local ProtoConstType: string = SType(ProtoConst)
+												
+												if ProtoConstType == "string" then
+													SPcall(debug.setconstant, ProtoFunction, ProtoConstIndex, "")
+												elseif ProtoConstType == "number" then
+													SPcall(debug.setconstant, ProtoFunction, ProtoConstIndex, 0)
+												elseif ProtoConstType == "boolean" then
+													SPcall(debug.setconstant, ProtoFunction, ProtoConstIndex, false)
+												end
+											end
+										end
+									end
+									
+									if debug.getupvalues and debug.setupvalue then
+										local ok12: boolean, ProtoUpvalues: any = SPcall(debug.getupvalues, ProtoFunction)
+										
+										if ok12 and ProtoUpvalues then
+											for ProtoUpName: any, ProtoUpVal: any in SPairs(ProtoUpvalues) do
+												SPcall(debug.setupvalue, ProtoFunction, ProtoUpName, nil)
+											end
+										end
+									end
+								end
+							end
+						end
+					end
+					
+					Self.Hooks[Function] = {
+						Original = Function,
+						Active = true
+					}
 					
 					Destroyed += 1
 				end
 			end
 		end
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] explode failed: {Err}`)
 	end)
+	
+	if not ok then
+		SWarn(`[{ExecutorName}] hook failed: {noo}`)
+	end
 	
 	return Destroyed
 end
 
-function Bynew:FilterHook(Self: Bynew, Filter: {Type: string?, Name: string?, Source: string?}, Hook: any): number
-	if not CheckSupport("filtergc", filtergc) then
-		return 0
-	end
-	
-	local Count: number = 0
-	
-	SXpcall(function(): ()
-		local Targets: any = filtergc(Filter.Type or "function", Filter)
-		
-		if SType(Targets) == "table" then
-			for Idx: number, Func: any in Targets do
-				Self:Hook(Func, Hook)
-				Count += 1
-			end
-		else
-			Self:Hook(Targets, Hook)
-			Count = 1
-		end
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] filter hook failed: {Err}`)
-	end)
-	
-	return Count
-end
-
-function Bynew:CleanThreads(Self: Bynew): number
-	if not CheckSupport("getreg", getreg) then
-		return 0
-	end
-	
-	local Killed: number = 0
-	
-	SXpcall(function(): ()
-		local Reg: any = getreg()
-		
-		for Idx: number, Obj: any in Reg do
-			if SType(Obj) == "thread" then
-				local Success: boolean, Func: any = SPcall(debug.info, Obj, 0, 'f')
-				
-				if Success and Func then
-					local Env: any = SGetFenv(Func)
-					
-					if not (SRawget(Env, 'script') and SRawget(Env, 'script').Parent) then
-						SPcall(coroutine.close, Obj)
-						Killed += 1
-					end
-				end
-			end
-		end
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] clean threads failed: {Err}`)
-	end)
-	
-	return Killed
-end
-
-function Bynew:Spoof(Self: Bynew, Func: any): any
-	return newcclosure(function(...): any
-		local Args: any = {...}
-		local Results: any
-		
-		SXpcall(function(): ()
-			local OldEnv: any = SGetFenv(Func)
-			local NewEnv: any = {}
-			
-			for K: any, V: any in SPairs(OldEnv) do
-				NewEnv[K] = V
-			end
-			
-			NewEnv.checkcaller = function(): boolean
-				return false
-			end
-			
-			SSetFenv(Func, NewEnv)
-			Results = {Func(table.unpack(Args))}
-			SSetFenv(Func, OldEnv)
-		end, function(Err: string): ()
-			SWarn(`[{ExecutorName}] spoof failed: {Err}`)
-		end)
-		
-		return table.unpack(Results or {})
-	end)
-end
-
-function Bynew:IndexHook(Self: Bynew, Callback: (Instance: any, Key: any) -> any?): ()
-	if not CheckSupport("getrawmetatable", getrawmetatable) then
-		return
-	end
-	
-	SXpcall(function(): ()
-		local Mt: any = getrawmetatable(game)
-		local OldIndex: any = Mt.__index
-		
-		SRawset(Mt, "__index", newcclosure(function(Inst: any, Key: any): any
-			local Result: any = Callback(Inst, Key)
-			if Result ~= nil then
-				return Result
-			end
-			return OldIndex(Inst, Key)
-		end))
-		
-		Self.Hooks[OldIndex] = {
-			Original = OldIndex,
-			Active = true
-		}
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] index hook failed: {Err}`)
-	end)
-end
-
-function Bynew:NamecallHook(Self: Bynew, Callback: (Instance: any, Method: string, Args: {any}) -> any?): ()
-	if not CheckSupport("getrawmetatable", getrawmetatable) then
-		return
-	end
-	
-	if not CheckSupport("getnamecallmethod", getnamecallmethod) then
-		return
-	end
-	
-	SXpcall(function(): ()
-		local Mt: any = getrawmetatable(game)
-		local OldNamecall: any = Mt.__namecall
-		
-		SRawset(Mt, "__namecall", newcclosure(function(Inst: any, ...): any
-			local Args: any = {...}
-			local Method: string = getnamecallmethod()
-			local Result: any = Callback(Inst, Method, Args)
-			if Result ~= nil then
-				return Result
-			end
-			return OldNamecall(Inst, table.unpack(Args))
-		end))
-		
-		Self.Hooks[OldNamecall] = {
-			Original = OldNamecall,
-			Active = true
-		}
-	end, function(Err: string): ()
-		SWarn(`[{ExecutorName}] namecall hook failed: {Err}`)
-	end)
-end
-
 function Bynew:RestoreHooks(Self: Bynew): ()
-	for Func: any, Entry: any in SPairs(Self.Hooks) do
-		if Entry.Active then
-			restorefunction(Func)
-		end
+	if not restorefunction then
+		SWarn(`[{ExecutorName}] doesn't support: restorefunction`)
+		return
 	end
 	
-	for Idx: number, Conn: any in Self.DisabledConnections do
-		Conn:Enable()
+	for Function: any, Entry: any in SPairs(Self.Hooks) do
+		if Entry.Active then
+			local ok: boolean = SPcall(restorefunction, Function)
+			if ok then
+				Entry.Active = false
+			end
+		end
 	end
 	
 	Self.Hooks = {}
-	Self.DisabledConnections = {}
 	Self.Cache = {}
 end
-
 
 return Bynew
