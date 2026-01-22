@@ -9,6 +9,7 @@ local SRawget: <K, V>({[K]: V}, K) -> V = clonefunction(rawget)
 local SRawset: <K, V>({[K]: V}, K, V) -> () = clonefunction(rawset)
 local SWarn: (string) -> () = clonefunction(warn)
 local SToString: (any) -> string = clonefunction(tostring)
+local SLower: (string) -> string = clonefunction(string.lower)
 
 local Services: {[string]: Instance} = setmetatable({}, {
 	__index = function(S: any, N: string): Instance
@@ -104,22 +105,24 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 				end
 				
 				if not Found and Find.ScriptName and Information.source then
-					local Source: string = SToString(Information.source)
-					if string.find(Source, Find.ScriptName, 1, true) then
+					local Source: string = SLower(SToString(Information.source))
+					local SearchName: string = SLower(Find.ScriptName)
+					if string.find(Source, SearchName, 1, true) then
 						Found = true
 					end
 				end
 				
 				if not Found and Find.Path and Information.source then
-					local FullPath: string = SToString(Information.source)
+					local FullPath: string = SLower(SToString(Information.source))
+					local SearchPath: string = SLower(Find.Path)
 					
-					if string.find(FullPath, Find.Path, 1, true) then
+					if string.find(FullPath, SearchPath, 1, true) then
 						Found = true
 					end
 					
 					if not Found then
 						for ServiceName: string, Service: Instance in SPairs(Services) do
-							if string.find(Find.Path, ServiceName, 1, true) then
+							if string.find(SearchPath, SLower(ServiceName), 1, true) then
 								local ok4: boolean = SPcall(function(): ()
 									local Parts: {string} = string.split(Find.Path, ".")
 									local Current: Instance = Service
@@ -141,8 +144,8 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 									if Current and Current ~= Service then
 										for Index2: number, Descendant: Instance in Current:GetDescendants() do
 											if Descendant:IsA("LocalScript") or Descendant:IsA("Script") or Descendant:IsA("ModuleScript") then
-												local DescendantName: string = Descendant.Name
-												local DescendantFullName: string = Descendant:GetFullName()
+												local DescendantName: string = SLower(Descendant.Name)
+												local DescendantFullName: string = SLower(Descendant:GetFullName())
 												
 												if string.find(FullPath, DescendantName, 1, true) or string.find(FullPath, DescendantFullName, 1, true) then
 													Found = true
@@ -160,7 +163,9 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 				end
 				
 				if not Found and Find.FunctionName and Information.name then
-					if Information.name == Find.FunctionName then
+					local FuncName: string = SLower(Information.name)
+					local SearchFunc: string = SLower(Find.FunctionName)
+					if FuncName == SearchFunc then
 						Found = true
 					end
 				end
@@ -183,7 +188,12 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 							for TargetIndex: number = 1, #Find.Constants do
 								local TargetConstant: any = Find.Constants[TargetIndex]
 								
-								if Constant == TargetConstant then
+								if SType(Constant) == "string" and SType(TargetConstant) == "string" then
+									if SLower(Constant) == SLower(TargetConstant) then
+										Found = true
+										break
+									end
+								elseif Constant == TargetConstant then
 									Found = true
 									break
 								end
@@ -200,13 +210,15 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 					if ok7 and FunctionUpvalues then
 						for UpvalueName: any, UpvalueValue: any in SPairs(FunctionUpvalues) do
 							for TargetIndex: number = 1, #Find.Upvalues do
-								local TargetUpvalueName: string = Find.Upvalues[TargetIndex]
+								local TargetUpvalueName: string = SLower(Find.Upvalues[TargetIndex])
 								
-								if SType(UpvalueName) == "string" and UpvalueName == TargetUpvalueName then
-									Found = true
-									break
+								if SType(UpvalueName) == "string" then
+									if SLower(UpvalueName) == TargetUpvalueName then
+										Found = true
+										break
+									end
 								elseif SType(UpvalueName) == "number" then
-									local UpvalueNameAsString: string = SToString(UpvalueName)
+									local UpvalueNameAsString: string = SLower(SToString(UpvalueName))
 									if UpvalueNameAsString == TargetUpvalueName then
 										Found = true
 										break
