@@ -174,15 +174,10 @@ local count = Bynew.Hook("Anticheat")
 print(count .. " functions destroyed")
 ```
 
-## Advanced
-
 ### Search by path
-```lua
-Bynew.Hook({Path = "Workspace.Scripts.AC"})
+```lua Bynew.Hook({Path = "Workspace.Scripts.AC"})
 ```
-
 ### Search by function name
-```lua
 Bynew.Hook({FunctionName = "detectExploit"})
 ```
 
