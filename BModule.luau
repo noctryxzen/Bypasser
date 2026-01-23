@@ -35,24 +35,22 @@ type HookOptions = {
 }
 
 type BynewMethods = {
-	New: () -> Bynew;
-	Hook: (self: Bynew, Target: string | HookOptions) -> number;
-	RestoreHooks: (self: Bynew) -> ();
+	Hook: (Target: string | HookOptions) -> number;
+	RestoreHooks: () -> ();
 }
 
 type Bynew = BynewData & BynewMethods
 
-local Bynew: Bynew = {} :: Bynew
-Bynew.__index = Bynew
+local Bynew: Bynew = setmetatable({
+	Hooks = {},
+	Cache = {}
+} :: BynewData, {
+	__index = {} :: BynewMethods
+}) :: Bynew
 
-function Bynew.New(): Bynew
-	local Self: BynewData = setmetatable({} :: BynewData, Bynew)
-	Self.Hooks = {}
-	Self.Cache = {}
-	return (Self :: any) :: Bynew
-end
+local Methods: BynewMethods = Bynew.__index :: any
 
-function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
+function Methods.Hook(Target: string | HookOptions): number
 	if not getgc and not filtergc then
 		SWarn(`[{ExecutorName}] doesn't support: getgc or filtergc`)
 		return 0
@@ -330,13 +328,13 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 	return Destroyed
 end
 
-function Bynew:RestoreHooks(Self: Bynew): ()
+function Methods.RestoreHooks(): ()
 	if not restorefunction then
 		SWarn(`[{ExecutorName}] doesn't support: restorefunction`)
 		return
 	end
 	
-	for Function: any, Entry: any in SPairs(Self.Hooks) do
+	for Function: any, Entry: any in SPairs(Bynew.Hooks) do
 		if Entry.Active then
 			local ok: boolean = SPcall(restorefunction, Function)
 			if ok then
@@ -345,8 +343,8 @@ function Bynew:RestoreHooks(Self: Bynew): ()
 		end
 	end
 	
-	Self.Hooks = {}
-	Self.Cache = {}
+	Bynew.Hooks = {}
+	Bynew.Cache = {}
 end
 
 return Bynew
