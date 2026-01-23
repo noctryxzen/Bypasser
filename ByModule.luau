@@ -43,27 +43,7 @@ local function GetExecutorName(): string
 	return ok and Name or "idk this executor"
 end
 
-local function GetScriptFromFunction(Func: (...any) -> any): LuaSourceContainer?
-	if not getscripts then return nil end
-	
-	local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
-	if not ok or not Info or not Info.source then return nil end
-	
-	local Source: string = Info.source
-	if Source:sub(1, 1) == "@" then
-		Source = Source:sub(2)
-	end
-	
-	local AllScripts: {LuaSourceContainer} = getscripts()
-	for i: number = 1, #AllScripts do
-		local Scr: LuaSourceContainer = AllScripts[i]
-		if Scr:GetFullName() == Source or Scr.Name == Source then
-			return Scr
-		end
-	end
-	
-	return nil
-end
+None
 
 local function GetFunctionAddress(Func: (...any) -> any): string?
 	local Addr: string = SToString(Func)
@@ -148,13 +128,26 @@ local function CheckFunctionHash(Func: (...any) -> any, TargetHash: string): boo
 end
 
 local function CheckScriptHash(Func: (...any) -> any, TargetHash: string): boolean
-	if not getscripthash then return false end
+	if not getscripthash or not getscripts then return false end
 	
-	local Scr: LuaSourceContainer? = GetScriptFromFunction(Func)
-	if not Scr then return false end
+	local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
+	if not ok or not Info or not Info.source then return false end
 	
-	local ok: boolean, Hash: any = SPcall(getscripthash, Scr)
-	return ok and Hash == TargetHash
+	local Source: string = Info.source
+	if Source:sub(1, 1) == "@" then
+		Source = Source:sub(2)
+	end
+	
+	local AllScripts: {LuaSourceContainer} = getscripts()
+	for i: number = 1, #AllScripts do
+		local Scr: LuaSourceContainer = AllScripts[i]
+		if Scr:GetFullName() == Source or Scr.Name == Source then
+			local ok2: boolean, Hash: any = SPcall(getscripthash, Scr)
+			return ok2 and Hash == TargetHash
+		end
+	end
+	
+	return false
 end
 
 local function ShouldHook(Func: (...any) -> any, Options: HookOptions): boolean
@@ -221,55 +214,101 @@ local function DisableFunction(Func: (...any) -> any): ()
 			end
 		end
 	end
+end
+
+local function GetAllFunctions(): {any}
+	local Processed: {[any]: boolean} = {}
+	local AllFunctions: {any} = {}
+	local Count: number = 0
 	
-	if debug.getprotos then
-		local ok: boolean, Protos: any = SPcall(debug.getprotos, Func)
-		if ok and Protos then
-			for i: number = 1, #Protos do
-				local Proto: any = Protos[i]
-				if SType(Proto) == "function" then
-					DisableFunction(Proto)
+	if filtergc then
+		local ok: boolean, Result: any = SPcall(filtergc, "function")
+		if ok and Result then
+			local FuncList: {any} = SType(Result) == "table" and Result or {Result}
+			for i: number = 1, #FuncList do
+				local Func: any = FuncList[i]
+				if not Processed[Func] then
+					Count += 1
+					AllFunctions[Count] = Func
+					Processed[Func] = true
 				end
 			end
 		end
 	end
-end
-
-local function GetAllFunctions(): {any}
-	if filtergc then
-		local ok: boolean, Result: any = SPcall(filtergc, "function")
-		if ok and Result then
-			return SType(Result) == "table" and Result or {Result}
+	
+	if getgc then
+		local ok: boolean, GcFuncs: any = SPcall(getgc, false)
+		if ok and GcFuncs then
+			for i: number = 1, #GcFuncs do
+				local Func: any = GcFuncs[i]
+				if SType(Func) == "function" and not Processed[Func] then
+					Count += 1
+					AllFunctions[Count] = Func
+					Processed[Func] = true
+				end
+			end
 		end
 	end
 	
-	if getgc then
-		return getgc(false)
+	local Reg: {any}? = nil
+	if getreg then
+		SPcall(function(): ()
+			Reg = getreg()
+		end)
+	elseif getregistry then
+		SPcall(function(): ()
+			Reg = getregistry()
+		end)
 	end
 	
-	return {}
+	if Reg then
+		for i: number = 1, #Reg do
+			local Obj: any = Reg[i]
+			if SType(Obj) == "function" and not Processed[Obj] then
+				if isexecutorclosure and isexecutorclosure(Obj) then
+					continue
+				end
+				
+				if islclosure and not islclosure(Obj) then
+					continue
+				end
+				
+				Count += 1
+				AllFunctions[Count] = Obj
+				Processed[Obj] = true
+			end
+		end
+	end
+	
+	return AllFunctions
 end
 
 function Bynew.Find(PossibleAC: string?): {string}
 	local Found: {string} = {}
+	local FoundSet: {[string]: boolean} = {}
+	local Count: number = 0
 	
 	if PossibleAC then
+		local SearchLower: string = SLower(PossibleAC)
 		local Functions: {any} = GetAllFunctions()
+		
 		for i: number = 1, #Functions do
 			local Func: any = Functions[i]
 			if SType(Func) == "function" then
 				local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
 				if ok and Info and Info.source then
 					local Source: string = SLower(SToString(Info.source))
-					if SFind(Source, SLower(PossibleAC), 1, true) then
-						Found[#Found + 1] = Info.source
+					if SFind(Source, SearchLower, 1, true) and not FoundSet[Info.source] then
+						Count += 1
+						Found[Count] = Info.source
+						FoundSet[Info.source] = true
 					end
 				end
 			end
 		end
 		
-		if #Found > 0 then
-			for i: number = 1, #Found do
+		if Count > 0 then
+			for i: number = 1, Count do
 				SWarn(Found[i])
 			end
 		end
@@ -283,14 +322,98 @@ function Bynew.Find(PossibleAC: string?): {string}
 		return Found
 	end
 	
+	local FoundScripts: {[LuaSourceContainer]: string} = {}
+	local ScriptCache: {LuaSourceContainer}? = nil
+	
+	if getscripts then
+		SPcall(function(): ()
+			ScriptCache = getscripts()
+		end)
+	end
+	
+	if getgc and ScriptCache then
+		local ok: boolean, GcFuncs: any = SPcall(getgc, false)
+		if ok and GcFuncs then
+			for i: number = 1, #GcFuncs do
+				if SType(GcFuncs[i]) == "function" then
+					if isexecutorclosure and isexecutorclosure(GcFuncs[i]) then
+						continue
+					end
+					
+					if islclosure and not islclosure(GcFuncs[i]) then
+						continue
+					end
+					
+					local ok2: boolean, Info: any = SPcall(debug.getinfo, GcFuncs[i])
+					if ok2 and Info and Info.source then
+						local SrcName: string = Info.source
+						if SrcName:sub(1, 1) == "@" then
+							SrcName = SrcName:sub(2)
+						end
+						
+						for j: number = 1, #ScriptCache do
+							local Scr: LuaSourceContainer = ScriptCache[j]
+							if (Scr:GetFullName() == SrcName or Scr.Name == SrcName) and not FoundScripts[Scr] then
+								FoundScripts[Scr] = "GC"
+								break
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	local Reg: {any}? = nil
+	if getreg then
+		SPcall(function(): ()
+			Reg = getreg()
+		end)
+	elseif getregistry then
+		SPcall(function(): ()
+			Reg = getregistry()
+		end)
+	end
+	
+	if Reg and ScriptCache then
+		for i: number = 1, #Reg do
+			local Obj: any = Reg[i]
+			
+			if SType(Obj) == "function" then
+				if isexecutorclosure and isexecutorclosure(Obj) then
+					continue
+				end
+				
+				if islclosure and not islclosure(Obj) then
+					continue
+				end
+				
+				local ok: boolean, Info: any = SPcall(debug.getinfo, Obj)
+				if ok and Info and Info.source and Info.source:sub(1, 1) == "@" then
+					local SrcName: string = Info.source:sub(2)
+					
+					for j: number = 1, #ScriptCache do
+						local Scr: LuaSourceContainer = ScriptCache[j]
+						if (Scr:GetFullName() == SrcName or Scr.Name == SrcName) and not FoundScripts[Scr] then
+							FoundScripts[Scr] = "Reg"
+							break
+						end
+					end
+				end
+			end
+		end
+	end
+	
 	local ok: boolean, RepFirst: any = SPcall(function(): Instance
 		return Services.ReplicatedFirst
 	end)
 	
 	if ok and RepFirst then
 		for idx: number, Child: Instance in RepFirst:GetDescendants() do
-			if Child:IsA("LocalScript") or Child:IsA("ModuleScript") then
-				Found[#Found + 1] = Child:GetFullName()
+			if Child:IsA("LocalScript") or Child:IsA("ModuleScript") or Child:IsA("Script") then
+				if not FoundScripts[Child] then
+					FoundScripts[Child] = "ReplicatedFirst"
+				end
 			end
 		end
 	end
@@ -300,16 +423,33 @@ function Bynew.Find(PossibleAC: string?): {string}
 		if ok2 and NilInsts then
 			for idx: number, Inst: any in NilInsts do
 				if SType(Inst) == "userdata" and typeof(Inst) == "Instance" then
-					if Inst:IsA("LocalScript") or Inst:IsA("ModuleScript") then
-						Found[#Found + 1] = `Nil.{Inst.Name}`
+					if Inst:IsA("LocalScript") or Inst:IsA("ModuleScript") or Inst:IsA("Script") then
+						if not FoundScripts[Inst] then
+							FoundScripts[Inst] = "Nil"
+						end
 					end
 				end
 			end
 		end
 	end
 	
-	if #Found > 0 then
-		for i: number = 1, #Found do
+	for Scr: LuaSourceContainer, Category: string in FoundScripts do
+		local Name: string = ""
+		if Category == "Nil" then
+			Name = `Nil.{Scr.Name}`
+		else
+			Name = Scr:GetFullName()
+		end
+		
+		if #Name > 0 and not FoundSet[Name] then
+			Count += 1
+			Found[Count] = Name
+			FoundSet[Name] = true
+		end
+	end
+	
+	if Count > 0 then
+		for i: number = 1, Count do
 			SWarn(Found[i])
 		end
 	end
@@ -324,8 +464,8 @@ function Bynew.Find(PossibleAC: string?): {string}
 end
 
 function Bynew.Hook(Options: string | HookOptions, Callback: ((fn: (...any) -> any) -> ())?): number
-	if not (getgc or filtergc) then
-		SWarn(`[{GetExecutorName()}] doesn't support: getgc or filtergc`)
+	if not (getgc or filtergc or getreg or getregistry) then
+		SWarn(`[{GetExecutorName()}] doesn't support: getgc, filtergc, getreg or getregistry`)
 		return 0
 	end
 	
@@ -421,4 +561,4 @@ function Bynew.Restore(Options: string | HookOptions?): number
 	return Restored
 end
 
-return Bynew 
+return Bynew
