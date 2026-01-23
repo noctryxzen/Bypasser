@@ -133,7 +133,7 @@ Bynew.Hook({FunctionHash = "df73abc9b265d4a457fc1859b4efc1734945a957ea45e5c943f3
 Matches the script's bytecode hash using getscripthash.
 
 ```lua
-Bynew.Hook({ScriptHash = "def456abc123"})
+Bynew.Hook({ScriptHash = "4b661836f73b846ea4bf2b52f5624784a177024a1b071047fffd00d5f8069ce841af02ecdfea4afdc46e825d1079aa4a"})
 ```
 
 ---
