@@ -43,8 +43,6 @@ local function GetExecutorName(): string
 	return ok and Name or "idk this executor"
 end
 
-None
-
 local function GetFunctionAddress(Func: (...any) -> any): string?
 	local Addr: string = SToString(Func)
 	local Start: number?, End: number? = SFind(Addr, "0x", 1, true)
@@ -562,3 +560,4 @@ function Bynew.Restore(Options: string | HookOptions?): number
 end
 
 return Bynew
+
