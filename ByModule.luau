@@ -1,6 +1,4 @@
---!strict
-
-local FunctionButCloned: <T>(T) -> T = clonefunction or function<T>(f: T): T return f end
+lcal FunctionButCloned: <T>(T) -> T = clonefunction or function<T>(f: T): T return f end
 
 local GetService: (Instance, string) -> Instance = FunctionButCloned(game.GetService)
 local Reference: (Instance) -> Instance = cloneref or function(X: Instance): Instance return X end
@@ -25,12 +23,22 @@ type HookOptions = {
 	FunctionHash: string?,
 	ScriptHash: string?,
 	Constants: {any}?,
-	Upvalues: {string}?
+	Upvalues: {string}?,
+	Service: string?
 }
 
 type HookEntry = {
 	Original: (...any) -> any,
 	Active: boolean
+}
+
+type FindResult = {
+	Function: (...any) -> any,
+	Info: {[string]: any},
+	Script: string?,
+	ScriptPath: string?,
+	Constants: {any}?,
+	Upvalues: {[string]: any}?
 }
 
 local Bynew = {
@@ -75,7 +83,7 @@ end
 
 local function MatchesConstant(A: any, B: any): boolean
 	if SType(A) == "string" and SType(B) == "string" then
-		return A:lower():find(B:lower(), 1, true) ~= nil
+		return SLower(A) == SLower(B)
 	end
 	return A == B
 end
@@ -136,7 +144,7 @@ end
 
 local function CheckFunctionName(Info: any, SearchName: string): boolean
 	if not Info.name then return false end
-	return SLower(Info.name):find(SLower(SearchName), 1, true) ~= nil
+	return SLower(Info.name) == SLower(SearchName)
 end
 
 local function CheckFunctionAddress(Func: (...any) -> any, TargetAddress: string): boolean
@@ -161,11 +169,42 @@ local function CheckScriptHash(Func: (...any) -> any, TargetHash: string): boole
 	return ok and Hash == TargetHash
 end
 
+local function CheckService(Func: (...any) -> any, ServiceName: string): boolean
+	local Scr: LuaSourceContainer? = GetScriptFromFunction(Func)
+	if not Scr then return false end
+	
+	if SLower(ServiceName) == "nil" then
+		if not getnilinstances then return false end
+		
+		local NilInsts: {Instance} = getnilinstances()
+		for i: number = 1, #NilInsts do
+			if NilInsts[i] == Scr then
+				return true
+			end
+		end
+		return false
+	end
+	
+	local Current: Instance? = Scr.Parent
+	while Current do
+		if Current.Name == ServiceName or Current.ClassName == ServiceName then
+			return true
+		end
+		Current = Current.Parent
+	end
+	
+	return false
+end
+
 local function ShouldHook(Func: (...any) -> any, Options: HookOptions): boolean
 	if not islclosure or not islclosure(Func) then return false end
 	
 	local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
 	if not ok or not Info then return false end
+	
+	if Options.Service and not CheckService(Func, Options.Service) then
+		return false
+	end
 	
 	if Options.ScriptName and not CheckScriptName(Info, Options.ScriptName) then
 		return false
@@ -242,26 +281,52 @@ local function GetAllFunctions(): {any}
 	return {}
 end
 
-function Bynew.Find(Options: string | HookOptions?): {{
-	Function: (...any) -> any,
-	Info: {[string]: any},
-	Script: string?,
-	Constants: {any}?,
-	Upvalues: {[string]: any}?
-}}
-	local Results: {{
-		Function: (...any) -> any,
-		Info: {[string]: any},
-		Script: string?,
-		Constants: {any}?,
-		Upvalues: {[string]: any}?
-	}} = {}
+local function GetScriptsFromService(ServiceName: string): {LuaSourceContainer}
+	if not getscripts then return {} end
+	
+	local AllScripts: {LuaSourceContainer} = getscripts()
+	local Results: {LuaSourceContainer} = {}
+	
+	for i: number = 1, #AllScripts do
+		local Scr: LuaSourceContainer = AllScripts[i]
+		local Current: Instance? = Scr.Parent
+		
+		while Current do
+			if Current.Name == ServiceName or Current.ClassName == ServiceName then
+				Results[#Results + 1] = Scr
+				break
+			end
+			Current = Current.Parent
+		end
+	end
+	
+	return Results
+end
+
+local function GetNilScripts(): {LuaSourceContainer}
+	if not getnilinstances then return {} end
+	
+	local NilInsts: {Instance} = getnilinstances()
+	local Results: {LuaSourceContainer} = {}
+	
+	for i: number = 1, #NilInsts do
+		local Inst: Instance = NilInsts[i]
+		if Inst:IsA("LocalScript") or Inst:IsA("ModuleScript") then
+			Results[#Results + 1] = Inst
+		end
+	end
+	
+	return Results
+end
+
+function Bynew.Find(Options: string | HookOptions?): {FindResult}
+	local Results: {FindResult} = {}
 	
 	local HookOpts: HookOptions
 	if Options == nil then
 		HookOpts = {}
 	elseif SType(Options) == "string" then
-		HookOpts = {Constants = {Options}}
+		HookOpts = {FunctionName = Options}
 	else
 		HookOpts = Options
 	end
@@ -283,21 +348,21 @@ function Bynew.Find(Options: string | HookOptions?): {{
 			if Matches then
 				local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
 				if ok and Info then
-					local Entry: {
-						Function: (...any) -> any,
-						Info: {[string]: any},
-						Script: string?,
-						Constants: {any}?,
-						Upvalues: {[string]: any}?
-					} = {
+					local Scr: LuaSourceContainer? = GetScriptFromFunction(Func)
+					
+					local Entry: FindResult = {
 						Function = Func,
 						Info = Info,
 						Script = nil,
+						ScriptPath = nil,
 						Constants = nil,
 						Upvalues = nil
 					}
 					
-					if Info.source then
+					if Scr then
+						Entry.Script = Scr.Name
+						Entry.ScriptPath = Scr:GetFullName()
+					elseif Info.source then
 						Entry.Script = Info.source
 					end
 					
@@ -317,10 +382,31 @@ function Bynew.Find(Options: string | HookOptions?): {{
 					
 					Results[#Results + 1] = Entry
 					
-					if Entry.Script then
+					if Entry.ScriptPath then
+						SWarn(`Found: {Entry.ScriptPath}`)
+					elseif Entry.Script then
 						SWarn(`Found: {Entry.Script}`)
 					else
 						SWarn(`Found: {SToString(Func)}`)
+					end
+					
+					if Entry.Constants and #Entry.Constants > 0 then
+						local ConstPreview: {string} = {}
+						for idx: number = 1, math.min(5, #Entry.Constants) do
+							ConstPreview[#ConstPreview + 1] = SToString(Entry.Constants[idx])
+						end
+						SWarn(`  Constants: {table.concat(ConstPreview, ", ")}`)
+					end
+					
+					if Entry.Upvalues and next(Entry.Upvalues) then
+						local UpPreview: {string} = {}
+						local Count: number = 0
+						for Name: any, Val: any in SPairs(Entry.Upvalues) do
+							if Count >= 5 then break end
+							UpPreview[#UpPreview + 1] = SToString(Name)
+							Count += 1
+						end
+						SWarn(`  Upvalues: {table.concat(UpPreview, ", ")}`)
 					end
 				end
 			end
@@ -329,8 +415,10 @@ function Bynew.Find(Options: string | HookOptions?): {{
 	
 	local Output: {string} = {}
 	for i: number = 1, #Results do
-		local R: any = Results[i]
-		if R.Script then
+		local R: FindResult = Results[i]
+		if R.ScriptPath then
+			Output[#Output + 1] = R.ScriptPath
+		elseif R.Script then
 			Output[#Output + 1] = R.Script
 		else
 			Output[#Output + 1] = SToString(R.Function)
