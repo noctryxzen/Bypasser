@@ -422,3 +422,4 @@ function Bynew.Restore(Options: string | HookOptions?): number
 end
 
 return Bynew 
+
