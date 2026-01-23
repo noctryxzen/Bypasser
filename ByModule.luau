@@ -43,6 +43,8 @@ local function GetExecutorName(): string
 	return ok and Name or "idk this executor"
 end
 
+
+
 local function GetFunctionAddress(Func: (...any) -> any): string?
 	local Addr: string = SToString(Func)
 	local Start: number?, End: number? = SFind(Addr, "0x", 1, true)
@@ -436,7 +438,20 @@ function Bynew.Find(PossibleAC: string?): {string}
 		if Category == "Nil" then
 			Name = `Nil.{Scr.Name}`
 		else
-			Name = Scr:GetFullName()
+			local Path: string = Scr:GetFullName()
+			local ServiceName: string = Path:match("^([^%.]+)")
+			
+			if ServiceName then
+				local ok: boolean, Service: any = SPcall(function(): any
+					return Services[ServiceName]
+				end)
+				if ok and Service then
+					local ClassName: string = Service.ClassName
+					Path = Path:gsub("^" .. ServiceName, ClassName)
+				end
+			end
+			
+			Name = Path
 		end
 		
 		if #Name > 0 and not FoundSet[Name] then
@@ -560,4 +575,3 @@ function Bynew.Restore(Options: string | HookOptions?): number
 end
 
 return Bynew
-
