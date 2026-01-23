@@ -41,16 +41,12 @@ type BynewMethods = {
 
 type Bynew = BynewData & BynewMethods
 
-local Bynew: Bynew = setmetatable({
-	Hooks = {},
-	Cache = {}
-} :: BynewData, {
-	__index = {} :: BynewMethods
-}) :: Bynew
+local Bynew: Bynew = {} :: Bynew
+Bynew.__index = Bynew
+Bynew.Hooks = {}
+Bynew.Cache = {}
 
-local Methods: BynewMethods = Bynew.__index :: any
-
-function Methods.Hook(Target: string | HookOptions): number
+function Bynew.Hook(Target: string | HookOptions): number
 	if not getgc and not filtergc then
 		SWarn(`[{ExecutorName}] doesn't support: getgc or filtergc`)
 		return 0
@@ -310,7 +306,7 @@ function Methods.Hook(Target: string | HookOptions): number
 						end
 					end
 					
-					Self.Hooks[Function] = {
+					Bynew.Hooks[Function] = {
 						Original = Function,
 						Active = true
 					}
@@ -328,7 +324,7 @@ function Methods.Hook(Target: string | HookOptions): number
 	return Destroyed
 end
 
-function Methods.RestoreHooks(): ()
+function Bynew.RestoreHooks(): ()
 	if not restorefunction then
 		SWarn(`[{ExecutorName}] doesn't support: restorefunction`)
 		return
