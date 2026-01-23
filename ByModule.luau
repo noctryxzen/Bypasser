@@ -10,6 +10,7 @@ local SPairs: <K, V>({[K]: V}) -> ((any, any) -> (any, any), any, any) = Functio
 local SWarn: (...any) -> () = FunctionButCloned(warn)
 local SToString: (any) -> string = FunctionButCloned(tostring)
 local SLower: (string) -> string = FunctionButCloned(string.lower)
+local SFind: (string, string, number?, boolean?) -> (number?, number?) = FunctionButCloned(string.find)
 
 local Services: {[string]: Instance} = setmetatable({}, {
 	__index = function(S: any, N: string): Instance
@@ -66,7 +67,7 @@ end
 
 local function GetFunctionAddress(Func: (...any) -> any): string?
 	local Addr: string = SToString(Func)
-	local Start: number?, End: number? = Addr:find("0x", 1, true)
+	local Start: number?, End: number? = SFind(Addr, "0x", 1, true)
 	if Start then
 		return Addr:sub(Start)
 	end
@@ -75,7 +76,7 @@ end
 
 local function MatchesConstant(A: any, B: any): boolean
 	if SType(A) == "string" and SType(B) == "string" then
-		return A:lower():find(B:lower(), 1, true) ~= nil
+		return SLower(A) == SLower(B)
 	end
 	return A == B
 end
@@ -86,20 +87,18 @@ local function CheckConstants(Func: (...any) -> any, TargetConstants: {any}): bo
 	local ok: boolean, Constants: any = SPcall(debug.getconstants, Func)
 	if not ok or not Constants then return false end
 	
-	for j: number = 1, #TargetConstants do
-		local Found: boolean = false
-		for i: number = 1, #Constants do
-			if MatchesConstant(Constants[i], TargetConstants[j]) then
-				Found = true
+	local Matches: number = 0
+	for i: number = 1, #Constants do
+		local Const: any = Constants[i]
+		for j: number = 1, #TargetConstants do
+			if MatchesConstant(Const, TargetConstants[j]) then
+				Matches += 1
 				break
 			end
 		end
-		if not Found then
-			return false
-		end
 	end
 	
-	return true
+	return Matches == #TargetConstants
 end
 
 local function CheckUpvalues(Func: (...any) -> any, TargetUpvalues: {string}): boolean
@@ -108,35 +107,32 @@ local function CheckUpvalues(Func: (...any) -> any, TargetUpvalues: {string}): b
 	local ok: boolean, Upvalues: any = SPcall(debug.getupvalues, Func)
 	if not ok or not Upvalues then return false end
 	
-	for i: number = 1, #TargetUpvalues do
-		local Found: boolean = false
-		local SearchLower: string = SLower(TargetUpvalues[i])
-		
-		for Name: any, Value: any in SPairs(Upvalues) do
-			if SType(Name) == "string" and SLower(Name):find(SearchLower, 1, true) then
-				Found = true
-				break
+	local Matches: number = 0
+	for Name: any, Value: any in SPairs(Upvalues) do
+		if SType(Name) == "string" then
+			local LowerName: string = SLower(Name)
+			for i: number = 1, #TargetUpvalues do
+				if LowerName == SLower(TargetUpvalues[i]) then
+					Matches += 1
+					break
+				end
 			end
-		end
-		
-		if not Found then
-			return false
 		end
 	end
 	
-	return true
+	return Matches == #TargetUpvalues
 end
 
 local function CheckScriptName(Info: any, SearchName: string): boolean
 	if not Info.source then return false end
 	local Source: string = SLower(SToString(Info.source))
 	local Search: string = SLower(SearchName)
-	return Source:find(Search, 1, true) ~= nil
+	return SFind(Source, Search, 1, true) ~= nil
 end
 
 local function CheckFunctionName(Info: any, SearchName: string): boolean
 	if not Info.name then return false end
-	return SLower(Info.name):find(SLower(SearchName), 1, true) ~= nil
+	return SLower(Info.name) == SLower(SearchName)
 end
 
 local function CheckFunctionAddress(Func: (...any) -> any, TargetAddress: string): boolean
@@ -225,6 +221,18 @@ local function DisableFunction(Func: (...any) -> any): ()
 			end
 		end
 	end
+	
+	if debug.getprotos then
+		local ok: boolean, Protos: any = SPcall(debug.getprotos, Func)
+		if ok and Protos then
+			for i: number = 1, #Protos do
+				local Proto: any = Protos[i]
+				if SType(Proto) == "function" then
+					DisableFunction(Proto)
+				end
+			end
+		end
+	end
 end
 
 local function GetAllFunctions(): {any}
@@ -242,108 +250,77 @@ local function GetAllFunctions(): {any}
 	return {}
 end
 
-function Bynew.Find(Options: string | HookOptions?): {{
-	Function: (...any) -> any,
-	Info: {[string]: any},
-	Script: string?,
-	Constants: {any}?,
-	Upvalues: {[string]: any}?
-}}
-	local Results: {{
-		Function: (...any) -> any,
-		Info: {[string]: any},
-		Script: string?,
-		Constants: {any}?,
-		Upvalues: {[string]: any}?
-	}} = {}
+function Bynew.Find(PossibleAC: string?): {string}
+	local Found: {string} = {}
 	
-	local HookOpts: HookOptions
-	if Options == nil then
-		HookOpts = {}
-	elseif SType(Options) == "string" then
-		HookOpts = {Constants = {Options}}
-	else
-		HookOpts = Options
+	if PossibleAC then
+		local Functions: {any} = GetAllFunctions()
+		for i: number = 1, #Functions do
+			local Func: any = Functions[i]
+			if SType(Func) == "function" then
+				local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
+				if ok and Info and Info.source then
+					local Source: string = SLower(SToString(Info.source))
+					if SFind(Source, SLower(PossibleAC), 1, true) then
+						Found[#Found + 1] = Info.source
+					end
+				end
+			end
+		end
+		
+		if #Found > 0 then
+			for i: number = 1, #Found do
+				SWarn(Found[i])
+			end
+		end
+		
+		if setclipboard then
+			setclipboard(table.concat(Found, "\n"))
+		elseif toclipboard then
+			toclipboard(table.concat(Found, "\n"))
+		end
+		
+		return Found
 	end
 	
-	local Functions: {any} = GetAllFunctions()
+	local ok: boolean, RepFirst: any = SPcall(function(): Instance
+		return Services.ReplicatedFirst
+	end)
 	
-	for i: number = 1, #Functions do
-		local Func: any = Functions[i]
-		
-		if SType(Func) == "function" then
-			local Matches: boolean = false
-			
-			if next(HookOpts) == nil then
-				Matches = true
-			else
-				Matches = ShouldHook(Func, HookOpts)
+	if ok and RepFirst then
+		for idx: number, Child: Instance in RepFirst:GetDescendants() do
+			if Child:IsA("LocalScript") or Child:IsA("ModuleScript") then
+				Found[#Found + 1] = Child:GetFullName()
 			end
-			
-			if Matches then
-				local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
-				if ok and Info then
-					local Entry: {
-						Function: (...any) -> any,
-						Info: {[string]: any},
-						Script: string?,
-						Constants: {any}?,
-						Upvalues: {[string]: any}?
-					} = {
-						Function = Func,
-						Info = Info,
-						Script = nil,
-						Constants = nil,
-						Upvalues = nil
-					}
-					
-					if Info.source then
-						Entry.Script = Info.source
-					end
-					
-					if debug.getconstants then
-						local ok2: boolean, Consts: any = SPcall(debug.getconstants, Func)
-						if ok2 and Consts then
-							Entry.Constants = Consts
-						end
-					end
-					
-					if debug.getupvalues then
-						local ok3: boolean, Ups: any = SPcall(debug.getupvalues, Func)
-						if ok3 and Ups then
-							Entry.Upvalues = Ups
-						end
-					end
-					
-					Results[#Results + 1] = Entry
-					
-					if Entry.Script then
-						SWarn(`Found: {Entry.Script}`)
-					else
-						SWarn(`Found: {SToString(Func)}`)
+		end
+	end
+	
+	if getnilinstances then
+		local ok2: boolean, NilInsts: any = SPcall(getnilinstances)
+		if ok2 and NilInsts then
+			for idx: number, Inst: any in NilInsts do
+				if SType(Inst) == "userdata" and typeof(Inst) == "Instance" then
+					if Inst:IsA("LocalScript") or Inst:IsA("ModuleScript") then
+						Found[#Found + 1] = `Nil.{Inst.Name}`
 					end
 				end
 			end
 		end
 	end
 	
-	local Output: {string} = {}
-	for i: number = 1, #Results do
-		local R: any = Results[i]
-		if R.Script then
-			Output[#Output + 1] = R.Script
-		else
-			Output[#Output + 1] = SToString(R.Function)
+	if #Found > 0 then
+		for i: number = 1, #Found do
+			SWarn(Found[i])
 		end
 	end
 	
 	if setclipboard then
-		setclipboard(table.concat(Output, "\n"))
+		setclipboard(table.concat(Found, "\n"))
 	elseif toclipboard then
-		toclipboard(table.concat(Output, "\n"))
+		toclipboard(table.concat(Found, "\n"))
 	end
 	
-	return Results
+	return Found
 end
 
 function Bynew.Hook(Options: string | HookOptions, Callback: ((fn: (...any) -> any) -> ())?): number
@@ -444,4 +421,4 @@ function Bynew.Restore(Options: string | HookOptions?): number
 	return Restored
 end
 
-return Bynew
+return Bynew 
