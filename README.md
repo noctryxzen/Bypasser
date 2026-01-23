@@ -1,31 +1,30 @@
 ## Installation
 
 ```lua
-local Bynew = loadstring(game:HttpGet("https://raw.githubusercontent.com/noctryxzen/Bynew/refs/heads/main/ByModule.luau"))()
+local Bynew = loadstring(game:HttpGet("https://raw.githubusercontent.com/noctryxzen/Bypasser/refs/heads/main/BModule.luau"))()
 ```
 
 ## API Reference
 
-### Bynew.Find(options?)
+### Bynew.Find(scriptName?)
 
-Finds and analyzes functions in the garbage collector. Without parameters, returns all functions. With a string parameter, searches for functions containing that string in their constants. With HookOptions, performs advanced filtering.
+Finds and lists anti-cheat scripts. Without parameters, it scans ReplicatedFirst and nil-parented instances for all LocalScripts and ModuleScripts. With a parameter, it searches the garbage collector for functions whose source contains the specified string.
 
 **Parameters:**
-- `options` (string | HookOptions | nil, optional) - Search criteria
+- `scriptName` (string, optional) - Script name to filter by
 
-**Returns:** Array of objects with Function, Info, Script, Constants, and Upvalues
+**Returns:** `{string}` - Array of script paths
 
 ```lua
 Bynew.Find()
-Bynew.Find("string.rep")
-Bynew.Find({Constants = {"GuiService", "InspectPlayer"}})
+Bynew.Find("AntiCheat")
 ```
 
 ---
 
 ### Bynew.Hook(options, callback?)
 
-Hooks functions matching the criteria. Without a callback, it destroys the function by clearing all constants and upvalues. With a callback, you can execute custom logic on each matched function.
+Hooks functions matching the criteria. Without a callback, it destroys the function by clearing all constants, upvalues, and nested functions. With a callback, you can execute custom logic on each matched function.
 
 **Parameters:**
 - `options` (string | HookOptions) - Script name or search options
@@ -91,7 +90,7 @@ type HookOptions = {
 
 ### ScriptName
 
-Searches the function's source path for this string. Case-insensitive, partial matching.
+Searches the function's source path for this string. Case-insensitive.
 
 ```lua
 Bynew.Hook({ScriptName = "AntiCheat"})
@@ -101,7 +100,7 @@ Bynew.Hook({ScriptName = "AntiCheat"})
 
 ### FunctionName
 
-Matches the function's name from debug.getinfo. Case-insensitive, partial matching.
+Matches the function's name from debug.getinfo.
 
 ```lua
 Bynew.Hook({FunctionName = "DetectExploit"})
@@ -141,7 +140,7 @@ Bynew.Hook({ScriptHash = "def456abc123"})
 
 ### Constants
 
-Function must contain all specified constants in its bytecode. Strings use partial matching and are case-insensitive.
+Function must contain all specified constants in its bytecode. Strings are case-insensitive.
 
 ```lua
 Bynew.Hook({Constants = {"Kicked", "Banned", true}})
@@ -151,7 +150,7 @@ Bynew.Hook({Constants = {"Kicked", "Banned", true}})
 
 ### Upvalues
 
-Function must have all specified upvalue names. Partial matching, case-insensitive.
+Function must have all specified upvalue names. Case-insensitive.
 
 ```lua
 Bynew.Hook({Upvalues = {"Player", "RemoteEvent"}})
