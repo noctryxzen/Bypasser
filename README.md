@@ -128,7 +128,3 @@ end
 ```
 
 Function exists but does nothing.
-
-## License
-
-MIT
