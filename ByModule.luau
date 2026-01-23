@@ -43,22 +43,6 @@ local function GetExecutorName(): string
 	return ok and Name or "idk this executor"
 end
 
-function Bynew.Find(PossibleAC: string?): {string}
-	local Found: {string} = {}
-	local FoundSet: {[string]: boolean} = {}
-	local Count: number = 0
-	
-	if PossibleAC then
-		local SearchLower: string = SLower(PossibleAC)
-		local Functions: {any} = GetAllFunctions()
-		
-		for i: number = 1, #Functions do
-			local Func: any = Functions[i]
-			if SType(Func) == "function" then
-				local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
-				if ok and Info and Info.source then
-					local Source: string = SL
-
 local function GetFunctionAddress(Func: (...any) -> any): string?
 	local Addr: string = SToString(Func)
 	local Start: number?, End: number? = SFind(Addr, "0x", 1, true)
@@ -465,15 +449,6 @@ function Bynew.Find(PossibleAC: string?): {string}
 			SWarn(Found[i])
 		end
 	end
-	
-	if setclipboard then
-		setclipboard(table.concat(Found, "\n"))
-	elseif toclipboard then
-		toclipboard(table.concat(Found, "\n"))
-	end
-	
-	return Found
-end
 	
 	if setclipboard then
 		setclipboard(table.concat(Found, "\n"))
