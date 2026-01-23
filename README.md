@@ -123,7 +123,7 @@ Bynew.Hook({FunctionAddress = "0x123abc"})
 Matches the function's bytecode hash using getfunctionhash.
 
 ```lua
-Bynew.Hook({FunctionHash = "abc123def456"})
+Bynew.Hook({FunctionHash = "df73abc9b265d4a457fc1859b4efc1734945a957ea45e5c943f3948c0b2fc933923a5eeb829fa6c87b3002ccba837496"})
 ```
 
 ---
