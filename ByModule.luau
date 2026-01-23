@@ -474,6 +474,15 @@ function Bynew.Find(PossibleAC: string?): {string}
 	
 	return Found
 end
+	
+	if setclipboard then
+		setclipboard(table.concat(Found, "\n"))
+	elseif toclipboard then
+		toclipboard(table.concat(Found, "\n"))
+	end
+	
+	return Found
+end
 
 function Bynew.Hook(Options: string | HookOptions, Callback: ((fn: (...any) -> any) -> ())?): number
 	if not (getgc or filtergc or getreg or getregistry) then
