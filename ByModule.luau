@@ -43,7 +43,21 @@ local function GetExecutorName(): string
 	return ok and Name or "idk this executor"
 end
 
-
+function Bynew.Find(PossibleAC: string?): {string}
+	local Found: {string} = {}
+	local FoundSet: {[string]: boolean} = {}
+	local Count: number = 0
+	
+	if PossibleAC then
+		local SearchLower: string = SLower(PossibleAC)
+		local Functions: {any} = GetAllFunctions()
+		
+		for i: number = 1, #Functions do
+			local Func: any = Functions[i]
+			if SType(Func) == "function" then
+				local ok: boolean, Info: any = SPcall(debug.getinfo, Func)
+				if ok and Info and Info.source then
+					local Source: string = SL
 
 local function GetFunctionAddress(Func: (...any) -> any): string?
 	local Addr: string = SToString(Func)
@@ -410,10 +424,8 @@ function Bynew.Find(PossibleAC: string?): {string}
 	
 	if ok and RepFirst then
 		for idx: number, Child: Instance in RepFirst:GetDescendants() do
-			if Child:IsA("LocalScript") or Child:IsA("ModuleScript") or Child:IsA("Script") then
-				if not FoundScripts[Child] then
-					FoundScripts[Child] = "ReplicatedFirst"
-				end
+			if (Child:IsA("LocalScript") or Child:IsA("ModuleScript")) and not FoundScripts[Child] then
+				FoundScripts[Child] = "ReplicatedFirst"
 			end
 		end
 	end
@@ -423,10 +435,8 @@ function Bynew.Find(PossibleAC: string?): {string}
 		if ok2 and NilInsts then
 			for idx: number, Inst: any in NilInsts do
 				if SType(Inst) == "userdata" and typeof(Inst) == "Instance" then
-					if Inst:IsA("LocalScript") or Inst:IsA("ModuleScript") or Inst:IsA("Script") then
-						if not FoundScripts[Inst] then
-							FoundScripts[Inst] = "Nil"
-						end
+					if (Inst:IsA("LocalScript") or Inst:IsA("ModuleScript")) and not FoundScripts[Inst] then
+						FoundScripts[Inst] = "Nil"
 					end
 				end
 			end
@@ -437,21 +447,10 @@ function Bynew.Find(PossibleAC: string?): {string}
 		local Name: string = ""
 		if Category == "Nil" then
 			Name = `Nil.{Scr.Name}`
+		elseif Category == "ReplicatedFirst" then
+			Name = `ReplicatedFirst.{Scr.Name}`
 		else
-			local Path: string = Scr:GetFullName()
-			local ServiceName: string = Path:match("^([^%.]+)")
-			
-			if ServiceName then
-				local ok: boolean, Service: any = SPcall(function(): any
-					return Services[ServiceName]
-				end)
-				if ok and Service then
-					local ClassName: string = Service.ClassName
-					Path = Path:gsub("^" .. ServiceName, ClassName)
-				end
-			end
-			
-			Name = Path
+			continue
 		end
 		
 		if #Name > 0 and not FoundSet[Name] then
