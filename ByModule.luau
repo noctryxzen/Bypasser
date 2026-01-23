@@ -1,4 +1,5 @@
-lcal FunctionButCloned: <T>(T) -> T = clonefunction or function<T>(f: T): T return f end
+--!strict
+local FunctionButCloned: <T>(T) -> T = clonefunction or function<T>(f: T): T return f end
 
 local GetService: (Instance, string) -> Instance = FunctionButCloned(game.GetService)
 local Reference: (Instance) -> Instance = cloneref or function(X: Instance): Instance return X end
@@ -533,3 +534,4 @@ function Bynew.Restore(Options: string | HookOptions?): number
 end
 
 return Bynew
+
