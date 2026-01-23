@@ -113,7 +113,7 @@ Bynew.Hook({FunctionName = "DetectExploit"})
 Matches the function's memory address from tostring(function).
 
 ```lua
-Bynew.Hook({FunctionAddress = "0x123abc"})
+Bynew.Hook({FunctionAddress = "0x9ee2e679783d026a"})
 ```
 
 ---
