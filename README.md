@@ -17,7 +17,7 @@ Finds and lists anti-cheat scripts. Without parameters, it scans ReplicatedFirst
 
 ```lua
 Bynew.Find()
-Bynew.Find("AntiCheat")
+Bynew.Find("ImNotAnTiCheat")
 ```
 
 ---
@@ -33,9 +33,9 @@ Hooks functions matching the criteria. Without a callback, it destroys the funct
 **Returns:** `number` - Count of hooked functions
 
 ```lua
-Bynew.Hook("AntiCheat")
-Bynew.Hook("AC", function(fn) print("Hooked:", fn) end)
-Bynew.Hook({ScriptName = "Security", Constants = {"kick"}})
+Bynew.Hook("BroISwearImNOT")
+Bynew.Hook("IDKIFImAC", function(fn) print("lol bro got hooked:", fn) end)
+Bynew.Hook({ScriptName = "TotallyNotAC", Constants = {"kick"}})
 ```
 
 ---
@@ -51,7 +51,7 @@ Replaces matched functions globally using hookfunction. The original function is
 **Returns:** `number` - Count of replaced functions
 
 ```lua
-Bynew.Replace("KickHandler", function() print("Blocked") end)
+Bynew.Replace("KickHandler", function() print("ezzz") end)
 ```
 
 ---
@@ -67,7 +67,7 @@ Restores hooked or replaced functions to their original state. Without parameter
 
 ```lua
 Bynew.Restore()
-Bynew.Restore("AntiCheat")
+Bynew.Restore("hiRestoreMe")
 ```
 
 ---
@@ -93,7 +93,7 @@ type HookOptions = {
 Searches the function's source path for this string. Case-insensitive.
 
 ```lua
-Bynew.Hook({ScriptName = "AntiCheat"})
+Bynew.Hook({ScriptName = "ImOnNil"})
 ```
 
 ---
@@ -103,7 +103,7 @@ Bynew.Hook({ScriptName = "AntiCheat"})
 Matches the function's name from debug.getinfo.
 
 ```lua
-Bynew.Hook({FunctionName = "DetectExploit"})
+Bynew.Hook({FunctionName = "Exploitersgetdetected"})
 ```
 
 ---
@@ -143,7 +143,7 @@ Bynew.Hook({ScriptHash = "4b661836f73b846ea4bf2b52f5624784a177024a1b071047fffd00
 Function must contain all specified constants in its bytecode. Strings are case-insensitive.
 
 ```lua
-Bynew.Hook({Constants = {"Kicked", "Banned", true}})
+Bynew.Hook({Constants = {"IsThisGuyKicked", "IsHeBanned", true}})
 ```
 
 ---
@@ -153,7 +153,7 @@ Bynew.Hook({Constants = {"Kicked", "Banned", true}})
 Function must have all specified upvalue names. Case-insensitive.
 
 ```lua
-Bynew.Hook({Upvalues = {"Player", "RemoteEvent"}})
+Bynew.Hook({Upvalues = {"ThePlayer", "RemoteEvent"}})
 ```
 
 ---
@@ -164,13 +164,13 @@ Combine filters to target specific functions precisely.
 
 ```lua
 Bynew.Hook({
-	ScriptName = "AC",
-	FunctionName = "Check",
-	Constants = {"exploit", "detected"}
+	ScriptName = "ImInNil",
+	FunctionName = "LetsCheckExploits",
+	Constants = {"BanOnDetect", "JackpotDetected"}
 })
 
 Bynew.Hook({
 	Upvalues = {"Player", "Character"},
-	Constants = {100, "Health"}
+	Constants = {100, "Walkspeed"}
 })
 ```
