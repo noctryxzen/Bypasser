@@ -1,7 +1,7 @@
 ## Installation
 
 ```lua
-local Bynew = loadstring(game:HttpGet("https://raw.githubusercontent.com/noctryxzen/Bypasser/refs/heads/main/BModule.luau"))()
+local Bynew = loadstring(game:HttpGet("https://raw.githubusercontent.com/noctryxzen/Bynew/refs/heads/main/ByModule.luau"))()
 ```
 
 ## API Reference
