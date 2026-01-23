@@ -79,7 +79,7 @@ type HookOptions = {
 	ScriptName: string?,
 	FunctionName: string?,
 	FunctionAddress: string?,
-	FunctionHash: string?,
+	FunctionHash: string?, -- This one is in W.I.P that means game would freeze.
 	ScriptHash: string?,
 	Constants: {any}?,
 	Upvalues: {string}?
@@ -128,7 +128,7 @@ Bynew.Hook({FunctionHash = "df73abc9b265d4a457fc1859b4efc1734945a957ea45e5c943f3
 
 ---
 
-### ScriptHash
+### ScriptHash -- This one is in W.I.P that means game would freeze.
 
 Matches the script's bytecode hash using getscripthash.
 
