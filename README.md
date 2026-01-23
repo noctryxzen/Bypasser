@@ -79,8 +79,8 @@ type HookOptions = {
 	ScriptName: string?,
 	FunctionName: string?,
 	FunctionAddress: string?,
-	FunctionHash: string?, -- This one is in W.I.P that means game would freeze.
-	ScriptHash: string?,
+	FunctionHash: string?,
+	ScriptHash: string?, -- This one is in W.I.P that means game would freeze.
 	Constants: {any}?,
 	Upvalues: {string}?
 }
