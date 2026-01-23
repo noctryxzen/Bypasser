@@ -62,32 +62,44 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 	local Destroyed: number = 0
 	
 	local ok: boolean, noo: any = SPcall(function(): ()
-		local Functions: any
-		local UseFilterGC: boolean = false
+		local Functions: {any}
 		
-		if filtergc and (Find.FunctionName or Find.ScriptName) then
-			local ok2: boolean, Result: any = SPcall(function(): any
-				local FilterOptions: {[string]: any} = {}
-				
-				if Find.FunctionName then
-					FilterOptions.Name = Find.FunctionName
-				end
-				
-				if Find.ScriptName then
-					FilterOptions.Source = Find.ScriptName
-				end
-				
-				return filtergc("function", FilterOptions)
-			end)
+		if filtergc then
+			local FilterOptions: {[string]: any} = {}
+			local UseFilter: boolean = false
 			
-			if ok2 and Result then
-				Functions = SType(Result) ~= "table" and {Result} or Result
-				UseFilterGC = true
+			if Find.FunctionName then
+				FilterOptions.Name = Find.FunctionName
+				UseFilter = true
+			end
+			
+			if Find.ScriptName then
+				FilterOptions.Source = Find.ScriptName
+				UseFilter = true
+			end
+			
+			if Find.Constants and #Find.Constants > 0 then
+				FilterOptions.Constants = Find.Constants
+				UseFilter = true
+			end
+			
+			if Find.Upvalues and #Find.Upvalues > 0 then
+				FilterOptions.Upvalues = Find.Upvalues
+				UseFilter = true
+			end
+			
+			if UseFilter then
+				local ok2: boolean, Result: any = SPcall(filtergc, "function", FilterOptions)
+				if ok2 and Result then
+					Functions = SType(Result) == "table" and Result or {Result}
+				else
+					Functions = getgc and getgc(false) or {}
+				end
 			else
 				Functions = getgc and getgc(false) or {}
 			end
 		else
-			Functions = getgc and getgc(false) or {}
+			Functions = getgc(false)
 		end
 		
 		for Index: number = 1, #Functions do
@@ -102,12 +114,7 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 				
 				local Found: boolean = false
 				
-				-- filtergc kullanıldıysa ve başarılıysa direkt bulunmuş sayılır
-				if UseFilterGC then
-					Found = true
-				end
-				
-				if not Found and Find.ScriptName and Information.source then
+				if Find.ScriptName and Information.source then
 					local Source: string = SLower(SToString(Information.source))
 					local SearchName: string = SLower(Find.ScriptName)
 					if string.find(Source, SearchName, 1, true) then
@@ -165,7 +172,7 @@ function Bynew:Hook(Self: Bynew, Target: string | HookOptions): number
 					end
 				end
 				
-				if not Found and Find.FunctionName and Information.name and SType(Information.name) == "string" then
+				if not Found and Find.FunctionName and Information.name then
 					local FuncName: string = SLower(Information.name)
 					local SearchFunc: string = SLower(Find.FunctionName)
 					if FuncName == SearchFunc then
