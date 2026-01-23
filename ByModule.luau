@@ -408,7 +408,7 @@ function Bynew.Find(PossibleAC: string?): {string}
 	
 	if ok and RepFirst then
 		for idx: number, Child: Instance in RepFirst:GetDescendants() do
-			if (Child:IsA("LocalScript") or Child:IsA("ModuleScript")) and not FoundScripts[Child] then
+			if (Child:IsA("LocalScript") or Child:IsA("ModuleScript") or Child:IsA("Script")) and not FoundScripts[Child] then
 				FoundScripts[Child] = "ReplicatedFirst"
 			end
 		end
@@ -419,7 +419,7 @@ function Bynew.Find(PossibleAC: string?): {string}
 		if ok2 and NilInsts then
 			for idx: number, Inst: any in NilInsts do
 				if SType(Inst) == "userdata" and typeof(Inst) == "Instance" then
-					if (Inst:IsA("LocalScript") or Inst:IsA("ModuleScript")) and not FoundScripts[Inst] then
+					if (Inst:IsA("LocalScript") or Inst:IsA("ModuleScript") or Inst:IsA("Script")) and not FoundScripts[Inst] then
 						FoundScripts[Inst] = "Nil"
 					end
 				end
