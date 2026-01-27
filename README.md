@@ -6,25 +6,54 @@ local Bynew = loadstring(game:HttpGet("https://raw.githubusercontent.com/noctryx
 
 ## API Reference
 
-### Bynew.Find(scriptName?)
+### Bynew.Get(args)
 
-Finds and lists anti-cheat scripts. Without parameters, it scans ReplicatedFirst and nil-parented instances for all LocalScripts and ModuleScripts. With a parameter, it searches the garbage collector for functions whose source contains the specified string.
+Retrieves various types of data from functions, scripts, or the garbage collector.
 
 **Parameters:**
-- `scriptName` (string, optional) - Script name to filter by
+- `args` (table) - Options table
 
-**Returns:** `{string}` - Array of script paths
+**Returns:** `table` - Result containing requested data
+
+**Examples:**
 
 ```lua
-Bynew.Find()
-Bynew.Find("ImNotAnTiCheat")
+local result = Bynew.Get({Upvalues = someFunction})
+local result = Bynew.Get({Constants = someFunction})
+local result = Bynew.Get({Info = someFunction})
+local result = Bynew.Get({GC = false})
+local result = Bynew.Get({GC = "tables"})
+local result = Bynew.Get({Scripts = true})
+local result = Bynew.Get({Nil = true})
+local result = Bynew.Get({Name = "KickPlayer"})
+local result = Bynew.Get({Source = "AntiCheat"})
+local result = Bynew.Get({Constant = "Kicked"})
+local result = Bynew.Get({Upvalue = "Player"})
+local result = Bynew.Get({Search = "AntiCheat"})
+local result = Bynew.Get({All = true})
+```
+
+---
+
+### Bynew.Set(args)
+
+Modifies upvalues or constants in functions.
+
+**Parameters:**
+- `args` (table) - Options table
+
+**Examples:**
+
+```lua
+Bynew.Set({Upvalue = {Func = someFunction, Name = "Health", Value = 100}})
+Bynew.Set({Constant = {Func = someFunction, Index = 1, Value = "NewValue"}})
 ```
 
 ---
 
 ### Bynew.Hook(options, callback?)
 
-Hooks functions matching the criteria. Without a callback, it destroys the function by clearing all constants, upvalues, and nested functions. With a callback, you can execute custom logic on each matched function.
+Hooks functions matching the criteria.
 
 **Parameters:**
 - `options` (string | HookOptions) - Script name or search options
@@ -32,42 +61,33 @@ Hooks functions matching the criteria. Without a callback, it destroys the funct
 
 **Returns:** `number` - Count of hooked functions
 
+**Examples:**
+
 ```lua
-Bynew.Hook("BroISwearImNOT")
-Bynew.Hook("IDKIFImAC", function(fn) print("lol bro got hooked:", fn) end)
-Bynew.Hook({ScriptName = "TotallyNotAC", Constants = {"kick"}})
+Bynew.Hook("AntiCheat")
+Bynew.Hook("AntiCheat", function(fn) print("hooked:", fn) end)
+Bynew.Hook({ScriptName = "AntiCheat", Constants = {"kick"}})
+Bynew.Hook({FunctionName = "KickPlayer"}, function() print("ezzz") end)
 ```
 
 ---
 
-### Bynew.Replace(options, replacement)
+### Bynew.Replace(options, callback)
 
-Replaces matched functions globally using hookfunction. The original function is completely replaced with your provided function.
+Replaces matched functions using hookfunction.
 
 **Parameters:**
 - `options` (string | HookOptions) - Script name or search options
-- `replacement` (function) - New function to replace with
+- `callback` (function) - Replacement function
 
 **Returns:** `number` - Count of replaced functions
 
+**Examples:**
+
 ```lua
 Bynew.Replace("KickHandler", function() print("ezzz") end)
-```
-
----
-
-### Bynew.Restore(options?)
-
-Restores hooked or replaced functions to their original state. Without parameters, restores all hooks. With parameters, restores only matching hooks.
-
-**Parameters:**
-- `options` (string | HookOptions, optional) - Script name or search options
-
-**Returns:** `number` - Count of restored functions
-
-```lua
-Bynew.Restore()
-Bynew.Restore("hiRestoreMe")
+Bynew.Replace({FunctionName = "KickHandler"}, function() print("ezzz") end)
+Bynew.Replace({ScriptName = "AntiCheat", FunctionName = "KickHandler"}, function() print("ezzz") end)
 ```
 
 ---
@@ -80,97 +100,20 @@ type HookOptions = {
 	FunctionName: string?,
 	FunctionAddress: string?,
 	FunctionHash: string?,
-	ScriptHash: string?, -- This one is in W.I.P that means game would freeze.
 	Constants: {any}?,
 	Upvalues: {string}?
 }
 ```
 
----
-
-### ScriptName
-
-Searches the function's source path for this string. Case-insensitive.
+**Examples:**
 
 ```lua
-Bynew.Hook({ScriptName = "ImOnNil"})
-```
-
----
-
-### FunctionName
-
-Matches the function's name from debug.getinfo.
-
-```lua
-Bynew.Hook({FunctionName = "Exploitersgetdetected"})
-```
-
----
-
-### FunctionAddress
-
-Matches the function's memory address from tostring(function).
-
-```lua
+Bynew.Hook({ScriptName = "AntiCheat"})
+Bynew.Hook({FunctionName = "KickPlayer"})
 Bynew.Hook({FunctionAddress = "0x9ee2e679783d026a"})
-```
-
----
-
-### FunctionHash
-
-Matches the function's bytecode hash using getfunctionhash.
-
-```lua
-Bynew.Hook({FunctionHash = "df73abc9b265d4a457fc1859b4efc1734945a957ea45e5c943f3948c0b2fc933923a5eeb829fa6c87b3002ccba837496"})
-```
-
----
-
-### ScriptHash -- This one is in W.I.P that means game would freeze.
-
-Matches the script's bytecode hash using getscripthash.
-
-```lua
-Bynew.Hook({ScriptHash = "4b661836f73b846ea4bf2b52f5624784a177024a1b071047fffd00d5f8069ce841af02ecdfea4afdc46e825d1079aa4a"})
-```
-
----
-
-### Constants
-
-Function must contain all specified constants in its bytecode. Strings are case-insensitive.
-
-```lua
-Bynew.Hook({Constants = {"IsThisGuyKicked", "IsHeBanned", true}})
-```
-
----
-
-### Upvalues
-
-Function must have all specified upvalue names. Case-insensitive.
-
-```lua
-Bynew.Hook({Upvalues = {"ThePlayer", "RemoteEvent"}})
-```
-
----
-
-### Multiple Filters
-
-Combine filters to target specific functions precisely.
-
-```lua
-Bynew.Hook({
-	ScriptName = "ImInNil",
-	FunctionName = "LetsCheckExploits",
-	Constants = {"BanOnDetect", "JackpotDetected"}
-})
-
-Bynew.Hook({
-	Upvalues = {"Player", "Character"},
-	Constants = {100, "Walkspeed"}
-})
+Bynew.Hook({FunctionHash = "df73abc9b265d4a457fc1859b4efc173..."})
+Bynew.Hook({Constants = {"Kicked", "Banned", true}})
+Bynew.Hook({Upvalues = {"Player", "RemoteEvent"}})
+Bynew.Hook({ScriptName = "AntiCheat", FunctionName = "KickPlayer", Constants = {"Kicked"}})
+Bynew.Hook({Upvalues = {"Player", "Character"}, Constants = {100, "Walkspeed"}})
 ```
